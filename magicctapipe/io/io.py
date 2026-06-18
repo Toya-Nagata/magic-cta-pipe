@@ -328,6 +328,7 @@ def get_stereo_events_old(
         "LST1_M1_M2": [1, 2, 3],  # combo_type = 1
         "LST1_M2": [1, 3],  # combo_type = 2
         "M1_M2": [2, 3],  # combo_type = 3
+        "LST1-LST4": [1, 4],
     }  # TODO: REMOVE WHEN SWITCHING TO THE NEW RFs IMPLEMENTTATION (1 RF PER TELESCOPE)
     event_data_stereo = event_data.copy()
 
@@ -819,6 +820,7 @@ def load_train_data_files(
         "LST1_M1_M2": [1, 2, 3],  # combo_type = 1
         "LST1_M2": [1, 3],  # combo_type = 2
         "M1_M2": [2, 3],  # combo_type = 3
+        "LST1_LST4": [1, 4],
     }  # TODO: REMOVE WHEN SWITCHING TO THE NEW RFs IMPLEMENTTATION (1 RF PER TELESCOPE)
 
     # Find the input files
