@@ -975,6 +975,7 @@ def load_mc_dl2_data_file(input_file, quality_cuts, event_type, weight_type_dl2)
         Type of the events which will be used -
         "software" uses software coincident events,
         "software_only_3tel" uses only 3-tel combination events,
+        "software_lst14" uses LST-1 and LST-4 software coincident events,        
         "magic_only" uses only MAGIC-stereo combination events, and
         "hardware" uses all the telescope combination events
     weight_type_dl2 : str
@@ -1014,6 +1015,10 @@ def load_mc_dl2_data_file(input_file, quality_cuts, event_type, weight_type_dl2)
 
     elif event_type == "magic_only":
         df_events.query("combo_type == 3", inplace=True)
+
+    elif event_type == "software_lst14":
+        # LST1 + LST4　with software evnet coincidence. 
+        df_events.query("combo_type == 4", inplace=True)   
 
     elif event_type != "hardware":
         raise ValueError(f"Unknown event type '{event_type}'.")
@@ -1106,6 +1111,7 @@ def load_dl2_data_file(input_file, quality_cuts, event_type, weight_type_dl2):
         Type of the events which will be used -
         "software" uses software coincident events,
         "software_only_3tel" uses only 3-tel combination events,
+        "software_lst14" uses LST-1 and LST-4 software coincident events,
         "magic_only" uses only MAGIC-stereo combination events, and
         "hardware" uses all the telescope combination events
     weight_type_dl2 : str
@@ -1145,6 +1151,10 @@ def load_dl2_data_file(input_file, quality_cuts, event_type, weight_type_dl2):
 
     elif event_type == "magic_only":
         event_data.query("combo_type == 3", inplace=True)
+
+    elif event_type == "software_lst14":
+        # LST1 + LST4　with software evnet coincidence. 
+        event_data.query("combo_type == 4", inplace=True)        
 
     elif event_type == "hardware":
         logger.warning(
@@ -1196,37 +1206,63 @@ def load_dl2_data_file(input_file, quality_cuts, event_type, weight_type_dl2):
 
     logger.info("\nCalculating the dead time correction factor...")
 
-    event_data.query(f"0 < time_diff < {TIME_DIFF_UPLIM.to_value('s')}", inplace=True)
+    if event_type == "software_lst14":
 
-    deadc_list = []
+        event_data.query(f"0 < time_diff < {TIME_DIFF_UPLIM.to_value('s')}", inplace=True)
 
-    # Calculate the LST-1 correction factor
-    time_diffs_lst = event_data.query("tel_id == 1")["time_diff"]
+        deadc_list = []
 
-    if len(time_diffs_lst) > 0:
-        deadc_lst = 1 - DEAD_TIME_LST.to_value("s") / time_diffs_lst.mean()
-        logger.info(f"LST-1: {deadc_lst.round(3)}")
+        # Calculate the LST-1 correction factor
+        time_diffs_lst1 = event_data.query("tel_id == 1")["time_diff"]
+        time_diffs_lst4 = event_data.query("tel_id == 4")["time_diff"]
 
-        deadc_list.append(deadc_lst)
+        if len(time_diffs_lst1) > 0:
+            deadc_lst1 = 1 - DEAD_TIME_LST.to_value("s") / time_diffs_lst1.mean()
+            logger.info(f"LST-1: {deadc_lst1.round(3)}")
+            deadc_list.append(deadc_lst1) 
+            
+        if len(time_diffs_lst4) > 0:
+            deadc_lst4 = 1 - DEAD_TIME_LST.to_value("s") / time_diffs_lst4.mean()
+            logger.info(f"LST-4: {deadc_lst4.round(3)}")
+            deadc_list.append(deadc_lst4) 
 
-    # Calculate the MAGIC correction factor with one of the telescopes
-    # whose number of events is larger than the other
-    time_diffs_m1 = event_data.query("tel_id == 2")["time_diff"]
-    time_diffs_m2 = event_data.query("tel_id == 3")["time_diff"]
+        # Calculate the total correction factor as the multiplicity of the
+        # telescope-wise correction factors
+        deadc = np.prod(deadc_list)
+        logger.info(f"--> Total correction factor: {deadc.round(3)}")
 
-    if len(time_diffs_m1) > len(time_diffs_m2):
-        deadc_magic = 1 - DEAD_TIME_MAGIC.to_value("s") / time_diffs_m1.mean()
-        logger.info(f"MAGIC(-I): {deadc_magic.round(3)}")
     else:
-        deadc_magic = 1 - DEAD_TIME_MAGIC.to_value("s") / time_diffs_m2.mean()
-        logger.info(f"MAGIC(-II): {deadc_magic.round(3)}")
+        event_data.query(f"0 < time_diff < {TIME_DIFF_UPLIM.to_value('s')}", inplace=True)
 
-    deadc_list.append(deadc_magic)
+        deadc_list = []
 
-    # Calculate the total correction factor as the multiplicity of the
-    # telescope-wise correction factors
-    deadc = np.prod(deadc_list)
-    logger.info(f"--> Total correction factor: {deadc.round(3)}")
+        # Calculate the LST-1 correction factor
+        time_diffs_lst = event_data.query("tel_id == 1")["time_diff"]
+
+        if len(time_diffs_lst) > 0:
+            deadc_lst = 1 - DEAD_TIME_LST.to_value("s") / time_diffs_lst.mean()
+            logger.info(f"LST-1: {deadc_lst.round(3)}")
+
+            deadc_list.append(deadc_lst)
+
+        # Calculate the MAGIC correction factor with one of the telescopes
+        # whose number of events is larger than the other
+        time_diffs_m1 = event_data.query("tel_id == 2")["time_diff"]
+        time_diffs_m2 = event_data.query("tel_id == 3")["time_diff"]
+
+        if len(time_diffs_m1) > len(time_diffs_m2):
+            deadc_magic = 1 - DEAD_TIME_MAGIC.to_value("s") / time_diffs_m1.mean()
+            logger.info(f"MAGIC(-I): {deadc_magic.round(3)}")
+        else:
+            deadc_magic = 1 - DEAD_TIME_MAGIC.to_value("s") / time_diffs_m2.mean()
+            logger.info(f"MAGIC(-II): {deadc_magic.round(3)}")
+
+        deadc_list.append(deadc_magic)
+
+        # Calculate the total correction factor as the multiplicity of the
+        # telescope-wise correction factors
+        deadc = np.prod(deadc_list)
+        logger.info(f"--> Total correction factor: {deadc.round(3)}")
 
     return event_table, on_time, deadc
 
